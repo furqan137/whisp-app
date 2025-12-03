@@ -17,90 +17,128 @@ class SelfDestructDialog extends StatefulWidget {
 }
 
 class _SelfDestructDialogState extends State<SelfDestructDialog> {
-  int _selectedDuration = 5;
+  int _selectedDuration = 10; // default like screenshot
+
   final List<int> _durations = [5, 10, 60];
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      backgroundColor: Color(0xFF5B5FE9),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 22, vertical: 30),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(26),
+      ),
+      backgroundColor: Colors.white,
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 26),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Send Self-Destruct Message',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                  color: Colors.white,
-                )),
-            SizedBox(height: 16),
+
+            // Title
+            Text(
+              "Self-Destruct Message",
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+            ),
+
+            SizedBox(height: 20),
+
+            // Preview Box
             Container(
-              padding: EdgeInsets.all(14),
+              width: double.infinity,
+              padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.07),
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
-                ],
+                color: const Color(0xFFF3F3F3),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                widget.messagePreview.isEmpty
+                    ? "This is a self-destructing message."
+                    : widget.messagePreview,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+
+            SizedBox(height: 28),
+
+            // Timer segmented UI
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F3F3),
+                borderRadius: BorderRadius.circular(14),
               ),
               child: Row(
-                children: [
-                  Icon(widget.hasMedia ? Icons.image : Icons.message, color: Color(0xFF5B5FE9)),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      widget.messagePreview.isEmpty ? 'No text entered' : widget.messagePreview,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontWeight: FontWeight.w500, color: Colors.black87),
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: _durations.map((d) {
+                  bool selected = _selectedDuration == d;
+
+                  return GestureDetector(
+                    onTap: () => setState(() => _selectedDuration = d),
+                    child: AnimatedContainer(
+                      duration: Duration(milliseconds: 160),
+                      padding: EdgeInsets.symmetric(
+                        vertical: 10,
+                        horizontal: 22,
+                      ),
+                      decoration: BoxDecoration(
+                        color: selected ? Colors.white : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                        border: selected
+                            ? Border.all(color: Colors.redAccent, width: 2)
+                            : null,
+                      ),
+                      child: Text(
+                        d == 60 ? "1m" : "${d}s",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  );
+                }).toList(),
               ),
             ),
-            SizedBox(height: 22),
-            Text('Choose timer:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
-            SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: _durations.map((d) => Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: ChoiceChip(
-                  label: Text(d == 60 ? '1m' : '${d}s', style: TextStyle(color: _selectedDuration == d ? Colors.white : Color(0xFF5B5FE9), fontWeight: FontWeight.bold)),
-                  selected: _selectedDuration == d,
-                  selectedColor: Color(0xFF7F53AC),
-                  backgroundColor: Colors.white,
-                  onSelected: (_) => setState(() => _selectedDuration = d),
-                  elevation: 2,
-                ),
-              )).toList(),
-            ),
-            SizedBox(height: 24),
+
+            SizedBox(height: 32),
+
+            // Send Button
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: Icon(Icons.local_fire_department, color: Colors.white),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  elevation: 3,
-                ),
-                label: Text('Send Self-Destruct Message', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              child: ElevatedButton(
                 onPressed: () {
                   widget.onSend(_selectedDuration);
-                  Navigator.of(context).pop();
+                  Navigator.pop(context);
                 },
+                style: ElevatedButton.styleFrom(
+                  elevation: 0,
+                  backgroundColor: Colors.white,
+                  side: BorderSide(color: Colors.black87, width: 1.4),
+                  padding: EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: Text(
+                  "Send",
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
+
           ],
         ),
       ),

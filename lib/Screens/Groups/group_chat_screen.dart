@@ -14,6 +14,8 @@ import '../chat/chatwidgets.dart';
 import '../profile_screen.dart';
 import 'create_group_screen.dart'; // Import AddGroupMembersScreen
 // Import CreateGroupScreen
+import '../../Service/self_destruct_service.dart';
+
 
 
 class GroupChatScreen extends StatefulWidget {
@@ -732,11 +734,12 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     _scrollController.dispose();
     _recordTimer?.cancel();
     _messageController.removeListener(_updateSelfDestructEnabled);
-    // Stop self-destruct listener for group chat
-    SelfDestructService.stopListener();
+
+    // Stop self-destruct listener for this group
+    SelfDestructService.stopListener("groups/${widget.groupId}/messages");
+
     super.dispose();
   }
-
 
 
   @override

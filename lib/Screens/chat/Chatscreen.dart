@@ -15,6 +15,8 @@ import 'package:provider/provider.dart';
 import '../../theme/theme_provider.dart';
 import '../profile_screen.dart';
 
+import '../../Service/self_destruct_service.dart';
+import 'self_destruct_dialog.dart';
 
 class ChatScreen extends StatefulWidget {
   final String peerUid;
@@ -50,7 +52,6 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _iBlockedHim = false;
   bool _heBlockedMe = false;
 
-
   // Messages and state
   List<Map<String, dynamic>> messages = [];
   bool _loading = true;
@@ -60,6 +61,7 @@ class _ChatScreenState extends State<ChatScreen> {
   // Self-destruct feature
   bool _isSelfDestructEnabled = false;
   String? _pendingMediaPath;
+  String? _selfDestructPath; // stored path used by SelfDestructService
 
   // Long press actions
   Map<String, dynamic>? _selectedMessage;
@@ -73,7 +75,15 @@ class _ChatScreenState extends State<ChatScreen> {
     _initializeApp();
     _checkBlockStatus();
     _messageController.addListener(_updateSelfDestructEnabled);
-    SelfDestructService.startListener(chatId, isGroup: false);
+    _startSelfDestructListener(); // safe start (will verify currentUser)
+  }
+
+  Future<void> _startSelfDestructListener() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+    final id = ChatUtils.getChatId(currentUser.uid, widget.peerUid);
+    _selfDestructPath = 'chats/$id/messages';
+    SelfDestructService.listenForSelfDestructMessages(_selfDestructPath!);
   }
 
   Future<bool> _isUserBlocked() async {
@@ -115,7 +125,6 @@ class _ChatScreenState extends State<ChatScreen> {
       _heBlockedMe = heBlockedDoc.exists;
     });
   }
-
 
   Future<void> _blockUser() async {
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -296,7 +305,6 @@ class _ChatScreenState extends State<ChatScreen> {
       });
     }
   }
-
 
   void _showSnackBar(String message, {Color? color}) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -572,7 +580,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-
   void _downloadFile(String url, String fileName, String fileType) {
     ChatFeatures.downloadFile(
       url: url,
@@ -660,7 +667,15 @@ class _ChatScreenState extends State<ChatScreen> {
     _audioPlayer?.closePlayer();
     _scrollController.dispose();
     _recordTimer?.cancel();
-    SelfDestructService.stopListener();
+
+    // stop self-destruct listener using stored path
+    if (_selfDestructPath != null) {
+      SelfDestructService.stopListener(_selfDestructPath!);
+    }
+
+    _messageController.removeListener(_updateSelfDestructEnabled);
+    _messageController.dispose();
+
     super.dispose();
   }
 
@@ -712,12 +727,14 @@ class _ChatScreenState extends State<ChatScreen> {
           : AppBar(
         backgroundColor: Colors.teal,
         title: Text(
-          widget.peerName.isNotEmpty ? widget.peerName : widget.peerUsername,
+          widget.peerName.isNotEmpty
+              ? widget.peerName
+              : widget.peerUsername,
           style: const TextStyle(color: Colors.white),
         ),
         actions: [
           FutureBuilder<bool>(
-            future: _isUserBlocked(), // checks if YOU blocked them
+            future: _isUserBlocked(),
             builder: (context, snapshot) {
               final iBlockedUser = snapshot.data ?? false;
 
@@ -729,16 +746,27 @@ class _ChatScreenState extends State<ChatScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ProfileScreen(userUid: widget.peerUid),
+                        builder: (_) =>
+                            ProfileScreen(userUid: widget.peerUid),
                       ),
                     );
-                  } else if (value == "block") {
+                  }
+
+                  else if (value == "block") {
                     _blockUser();
-                  } else if (value == "unblock") {
+                  }
+
+                  else if (value == "unblock") {
                     _unblockUser();
+                  }
+
+                  // ⚡ NEW OPTION: Self-destruct message
+                  else if (value == "self_destruct") {
+                    _openSelfDestructDialog();
                   }
                 },
                 itemBuilder: (context) => [
+                  // --- View profile ---
                   const PopupMenuItem(
                     value: "view",
                     child: Row(
@@ -750,6 +778,8 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
 
+
+                  // --- Block user ---
                   if (!iBlockedUser)
                     const PopupMenuItem(
                       value: "block",
@@ -757,14 +787,13 @@ class _ChatScreenState extends State<ChatScreen> {
                         children: [
                           Icon(Icons.block, color: Colors.red),
                           SizedBox(width: 10),
-                          Text(
-                            "Block User",
-                            style: TextStyle(color: Colors.red),
-                          ),
+                          Text("Block User",
+                              style: TextStyle(color: Colors.red)),
                         ],
                       ),
                     ),
 
+                  // --- Unblock user ---
                   if (iBlockedUser)
                     const PopupMenuItem(
                       value: "unblock",
@@ -772,19 +801,18 @@ class _ChatScreenState extends State<ChatScreen> {
                         children: [
                           Icon(Icons.lock_open, color: Colors.green),
                           SizedBox(width: 10),
-                          Text(
-                            "Unblock User",
-                            style: TextStyle(color: Colors.green),
-                          ),
+                          Text("Unblock User",
+                              style: TextStyle(color: Colors.green)),
                         ],
                       ),
                     ),
                 ],
               );
             },
-          )
+          ),
         ],
       ),
+
 
       body: Column(
         children: [
@@ -847,177 +875,5 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
     );
-  }
-}
-
-// Self-Destruct Dialog Widget
-class SelfDestructDialog extends StatefulWidget {
-  final String messagePreview;
-  final bool hasMedia;
-  final Function(int) onSend;
-
-  const SelfDestructDialog({
-    Key? key,
-    required this.messagePreview,
-    required this.hasMedia,
-    required this.onSend,
-  }) : super(key: key);
-
-  @override
-  State<SelfDestructDialog> createState() => _SelfDestructDialogState();
-}
-
-class _SelfDestructDialogState extends State<SelfDestructDialog> {
-  int _selectedDuration = 5;
-  final List<int> _durations = [5, 10, 60];
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      backgroundColor: Color(0xFF5B5FE9),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Send Self-Destruct Message',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                  color: Colors.white,
-                )),
-            SizedBox(height: 16),
-            Container(
-              padding: EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha((0.07 * 255).toInt()),
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Icon(widget.hasMedia ? Icons.image : Icons.message, color: Color(0xFF5B5FE9)),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      widget.messagePreview.isEmpty ? 'No text entered' : widget.messagePreview,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontWeight: FontWeight.w500, color: Colors.black87),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: 22),
-            Text('Choose timer:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
-            SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: _durations.map((d) => Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: ChoiceChip(
-                  label: Text(d == 60 ? '1m' : '${d}s', style: TextStyle(color: _selectedDuration == d ? Colors.white : Color(0xFF5B5FE9), fontWeight: FontWeight.bold)),
-                  selected: _selectedDuration == d,
-                  selectedColor: Color(0xFF7F53AC),
-                  backgroundColor: Colors.white,
-                  onSelected: (_) => setState(() => _selectedDuration = d),
-                  elevation: 2,
-                ),
-              )).toList(),
-            ),
-            SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: Icon(Icons.local_fire_department, color: Colors.white),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  elevation: 3,
-                ),
-                label: Text('Send Self-Destruct Message', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                onPressed: () {
-                  widget.onSend(_selectedDuration);
-                  Navigator.of(context).pop();
-                },
-              ),
-            ),
-            SizedBox(height: 8),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('Cancel', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// Self-Destruct Service Class
-class SelfDestructService {
-  static StreamSubscription? _listener;
-
-  static void startListener(String chatId, {bool isGroup = false}) {
-    final collection = isGroup ? "groups" : "chats";
-    final ref = FirebaseFirestore.instance
-        .collection(collection)
-        .doc(chatId)
-        .collection("messages")
-        .where("selfDestruct", isEqualTo: true);
-
-    _listener?.cancel();
-
-    _listener = ref.snapshots().listen((snapshot) async {
-      final now = DateTime.now();
-
-      for (var doc in snapshot.docs) {
-        final data = doc.data();
-
-        final createdAt = (data["createdAt"] as Timestamp).toDate();
-        final destroyAfter = data["destroyAfter"] as int;
-
-        final expireTime = createdAt.add(Duration(seconds: destroyAfter));
-
-        if (now.isAfter(expireTime)) {
-          // Delete media as well
-          if (data["mediaPublicId"] != null) {
-            await _deleteFromCloudinary(data["mediaPublicId"]);
-          }
-
-          await doc.reference.delete();
-        }
-      }
-    });
-  }
-
-
-  static Future<void> _deleteFromCloudinary(String publicId) async {
-    // Replace with your Cloudinary credentials
-    const cloudName = 'YOUR_CLOUD_NAME';
-    const apiKey = 'YOUR_API_KEY';
-    const apiSecret = 'YOUR_API_SECRET';
-    final url =
-        'https://api.cloudinary.com/v1_1/$cloudName/resources/image/upload?public_ids[]=$publicId&invalidate=true';
-    final auth = 'Basic ' + base64Encode(utf8.encode('$apiKey:$apiSecret'));
-    await http.delete(
-      Uri.parse(url),
-      headers: {'Authorization': auth},
-    );
-  }
-
-  static void stopListener() {
-    _listener?.cancel();
-    _listener = null;
   }
 }
