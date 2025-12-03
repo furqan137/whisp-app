@@ -23,7 +23,7 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   // ───────────────────────────────────────────────────────────────
-  // CHAT THEME (COLOR PACKS)
+  // CHAT THEME COLORS
   // ───────────────────────────────────────────────────────────────
   ChatTheme _chatTheme = ChatTheme.Blue;
   ChatTheme get chatTheme => _chatTheme;
@@ -34,7 +34,7 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   // ───────────────────────────────────────────────────────────────
-  // GRADIENT COLORS FOR BUBBLES
+  // GRADIENT COLORS
   // ───────────────────────────────────────────────────────────────
   static const Map<ChatTheme, List<Color>> _chatGradientColors = {
     ChatTheme.Blue: [Color(0xFF4FACFE), Color(0xFF00F2FE)],
@@ -45,7 +45,7 @@ class ThemeProvider extends ChangeNotifier {
   };
 
   // ───────────────────────────────────────────────────────────────
-  // ACCENT COLORS (SWITCHES, ICONS)
+  // ACCENT COLORS
   // ───────────────────────────────────────────────────────────────
   static const Map<ChatTheme, Color> _accentColors = {
     ChatTheme.Blue: Color(0xFF00F2FE),
@@ -70,10 +70,8 @@ class ThemeProvider extends ChangeNotifier {
   Color get chatBackground => _chatBackgroundColors[_chatTheme]!;
 
   // ───────────────────────────────────────────────────────────────
-  // GETTERS – BUBBLE COLORS & GRADIENTS
+  // BUBBLE GRADIENT AND COLORS
   // ───────────────────────────────────────────────────────────────
-
-  /// Gradient for **my outgoing** bubble
   Gradient get chatGradient {
     final colors = _chatGradientColors[_chatTheme]!;
     return LinearGradient(
@@ -83,24 +81,25 @@ class ThemeProvider extends ChangeNotifier {
     );
   }
 
-  /// Accent color (switches, borders, highlights)
   Color get accentColor => _accentColors[_chatTheme]!;
-
-  /// Fallback solid color for my bubble (if gradient not supported)
   Color get myBubbleFallbackColor => _chatGradientColors[_chatTheme]!.first;
-
-  /// My message text color (always white)
   Color get myBubbleTextColor => Colors.white;
 
-  /// Other person's bubble background
   Color othersBubbleBackground(bool isDark) =>
       isDark ? Colors.white12 : Colors.grey.shade200;
 
-  /// Other person's text color
   Color othersBubbleTextColor(bool isDark) =>
       isDark ? Colors.white : Colors.black87;
 
-  /// Get selected theme gradient (for preview)
+  // ----------------------------------------------------------------
+  // NEW → CHAT APP BAR COLOR (Matches Chat Theme)
+  // ----------------------------------------------------------------
+  Color chatAppBarColor(bool isDark) {
+    if (isDark) return const Color(0xFF0C1220); // dark app bar
+    return _chatGradientColors[_chatTheme]!.first; // use theme color
+  }
+
+  // Gradient preview helper
   Gradient chatGradientFor(ChatTheme theme, BuildContext context) {
     final colors = _chatGradientColors[theme]!;
     return LinearGradient(
@@ -110,9 +109,7 @@ class ThemeProvider extends ChangeNotifier {
     );
   }
 
-  // ───────────────────────────────────────────────────────────────
-  // THEME NAMES (USED IN SETTINGS UI)
-  // ───────────────────────────────────────────────────────────────
+  // Theme names (settings UI)
   String getThemeName(ChatTheme theme) {
     switch (theme) {
       case ChatTheme.Blue:
