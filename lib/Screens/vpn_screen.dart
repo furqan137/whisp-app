@@ -152,7 +152,7 @@ class _VpnScreenState extends State<VpnScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Virtual Location (Fake VPN)"),
+        title: const Text("Virtual Location VPN"),
       ),
 
       body: Column(
