@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'Login.dart';
 import 'emailauthentication.dart';
 import 'security_question_2fa.dart';
+import 'username_puzzle_screen.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -33,10 +34,25 @@ class _SignupScreenState extends State<SignupScreen>
   @override
   void initState() {
     super.initState();
-    _fadeCtrl =
-        AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+
+    _fadeCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 600));
     _fade = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
     _fadeCtrl.forward();
+
+    // 🔥 SHOW PUZZLE IMMEDIATELY WHEN SIGNUPSCREEN OPENS
+    Future.delayed(Duration.zero, () async {
+      final generatedId = await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const UsernamePuzzleScreen()),
+      );
+
+      if (generatedId != null && generatedId is String) {
+        setState(() {
+          _usernameController.text = generatedId;
+        });
+      }
+    });
   }
 
   @override
@@ -49,31 +65,14 @@ class _SignupScreenState extends State<SignupScreen>
     super.dispose();
   }
 
-  // ------------------------- GENERATE USERNAME --------------------------
-  String _generateUsername() {
-    const letters = 'abcdefghijklmnopqrstuvwxyz';
-    const numbers = '0123456789';
-    final r = Random();
-
-    final part1 = List.generate(
-      4 + r.nextInt(3),
-      (_) => letters[r.nextInt(letters.length)],
-    ).join();
-
-    final part2 = List.generate(
-      3 + r.nextInt(3),
-      (_) => numbers[r.nextInt(numbers.length)],
-    ).join();
-
-    return "${part1}_$part2";
-  }
-
+  // ------------------- CHECK USERNAME --------------------
   Future<bool> _checkUsername(String u) async {
-    final q = await usersRef.where("username", isEqualTo: u).limit(1).get();
+    final q =
+    await usersRef.where("username", isEqualTo: u).limit(1).get();
     return q.docs.isNotEmpty;
   }
 
-  // ------------------------- VALIDATION + SIGNUP ------------------------
+  // ------------------- SIGNUP --------------------
   Future<void> _signup() async {
     FocusScope.of(context).unfocus();
 
@@ -84,7 +83,10 @@ class _SignupScreenState extends State<SignupScreen>
 
     setState(() => _error = null);
 
-    if (username.isEmpty || fullname.isEmpty || password.isEmpty || confirm.isEmpty) {
+    if (username.isEmpty ||
+        fullname.isEmpty ||
+        password.isEmpty ||
+        confirm.isEmpty) {
       setState(() => _error = "Please fill all fields");
       return;
     }
@@ -102,7 +104,6 @@ class _SignupScreenState extends State<SignupScreen>
     setState(() => _isLoading = true);
 
     try {
-      // Check username
       if (await _checkUsername(username)) {
         setState(() {
           _isLoading = false;
@@ -113,16 +114,14 @@ class _SignupScreenState extends State<SignupScreen>
 
       if (!mounted) return;
 
-      // Step 2 → Security Question
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => SecurityQuestion2FA(
-            uid: "", // signup mode
+            uid: "",
             isForPasswordReset: false,
             isForLoginVerify: false,
             onComplete: (qa) {
-              // Move to Email Verification Page
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
@@ -147,17 +146,16 @@ class _SignupScreenState extends State<SignupScreen>
     }
   }
 
-  // ------------------------- FIELD WIDGET -------------------------
+  // ------------------- INPUT FIELD --------------------
   Widget _field(TextEditingController c, String hint,
       {bool isPassword = false, Widget? suffix}) {
-    const gradient = LinearGradient(
-      colors: [Color(0xFF6D5DF6), Color(0xFF3C8CE7)],
-    );
+    const gradient =
+    LinearGradient(colors: [Color(0xFF6D5DF6), Color(0xFF3C8CE7)]);
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 10),
-      decoration:
-          BoxDecoration(borderRadius: BorderRadius.circular(14), gradient: gradient),
+      decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14), gradient: gradient),
       child: Container(
         margin: const EdgeInsets.all(2.3),
         decoration: BoxDecoration(
@@ -173,7 +171,7 @@ class _SignupScreenState extends State<SignupScreen>
             hintText: hint,
             hintStyle: const TextStyle(color: Colors.white54),
             contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
             suffixIcon: suffix,
           ),
         ),
@@ -181,12 +179,11 @@ class _SignupScreenState extends State<SignupScreen>
     );
   }
 
-  // ------------------------ UI BUILD -------------------------
+  // ------------------- UI --------------------
   @override
   Widget build(BuildContext context) {
-    const gradient = LinearGradient(
-      colors: [Color(0xFF6D5DF6), Color(0xFF3C8CE7)],
-    );
+    const gradient =
+    LinearGradient(colors: [Color(0xFF6D5DF6), Color(0xFF3C8CE7)]);
 
     return Scaffold(
       backgroundColor: const Color(0xFF101526),
@@ -203,58 +200,34 @@ class _SignupScreenState extends State<SignupScreen>
                     fontSize: 36,
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
-                    fontFamily: "Montserrat",
-                    letterSpacing: 1.2,
                   ),
                 ),
                 const SizedBox(height: 30),
 
-                // username
-                _field(
-                  _usernameController,
-                  "Username",
-                  suffix: IconButton(
-                    icon: const Icon(Icons.refresh, color: Colors.white),
-                    onPressed: () async {
-                      String u = _generateUsername();
-                      while (await _checkUsername(u)) {
-                        u = _generateUsername();
-                      }
-                      setState(() => _usernameController.text = u);
-                    },
-                  ),
-                ),
+                _field(_usernameController, "Username"),
 
-                // full name
                 _field(_nameController, "Full Name"),
 
-                // password
                 _field(_passwordController, "Password", isPassword: true),
 
-                // confirm password
                 _field(_confirmPasswordController, "Confirm Password",
                     isPassword: true),
 
                 const SizedBox(height: 10),
 
                 if (_error != null)
-                  Text(
-                    _error!,
-                    style: const TextStyle(color: Colors.redAccent),
-                    textAlign: TextAlign.center,
-                  ),
+                  Text(_error!,
+                      style: const TextStyle(color: Colors.redAccent)),
 
                 const SizedBox(height: 18),
 
-                // signup button
                 SizedBox(
                   height: 48,
                   width: 250,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      gradient: gradient,
-                    ),
+                        borderRadius: BorderRadius.circular(16),
+                        gradient: gradient),
                     child: ElevatedButton(
                       onPressed: _isLoading ? null : _signup,
                       style: ElevatedButton.styleFrom(
@@ -265,11 +238,10 @@ class _SignupScreenState extends State<SignupScreen>
                       ),
                       child: _isLoading
                           ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text(
-                              "Continue",
-                              style: TextStyle(
-                                  fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
+                          : const Text("Continue",
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ),
@@ -280,19 +252,18 @@ class _SignupScreenState extends State<SignupScreen>
 
                 GestureDetector(
                   onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  ),
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const LoginScreen())),
                   child: ShaderMask(
-                    shaderCallback: (bounds) => gradient.createShader(bounds),
+                    shaderCallback: (b) => gradient.createShader(b),
                     child: const Text(
                       "Already have an account? Login",
                       style: TextStyle(
-                        color: Colors.white,
-                        decoration: TextDecoration.underline,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+                          color: Colors.white,
+                          decoration: TextDecoration.underline,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16),
                     ),
                   ),
                 ),

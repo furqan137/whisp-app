@@ -13,21 +13,26 @@ import '../about/about_app_screen.dart';
 import '../about/help_support_screen.dart';
 import '../about/report_bug_screen.dart';
 import '../settings/settings_screen.dart';
+import '../vpn_screen.dart';  // ⭐ ADD VPN SCREEN
 
 // THEME
 import '../../theme/theme_provider.dart';
-
 
 class BottomNavigator extends StatefulWidget {
   static const int homeIndex = 0;
   static const int groupsIndex = 1;
   static const int settingsIndex = 2;
-  static const int aboutIndex = 3;
+  static const int vpnIndex = 3;      // ⭐ NEW
+  static const int aboutIndex = 4;
 
   final int initialIndex;
   final bool forceShowHome;
 
-  const BottomNavigator({Key? key, this.initialIndex = homeIndex, this.forceShowHome = false}) : super(key: key);
+  const BottomNavigator({
+    Key? key,
+    this.initialIndex = homeIndex,
+    this.forceShowHome = false,
+  }) : super(key: key);
 
   @override
   State<BottomNavigator> createState() => _BottomNavigatorState();
@@ -81,16 +86,16 @@ class _BottomNavigatorState extends State<BottomNavigator> {
   }
 
   static final List<Widget> _screens = <Widget>[
-    const HomePage(),
-    const GroupScreen(),
-    const SettingsScreen(),
-    const AboutAppScreen(),
+    const HomePage(),          // 0
+    const GroupScreen(),       // 1
+    const SettingsScreen(),    // 2
+    const VpnScreen(),         // ⭐ 3 — NEW VPN PAGE
+    const AboutAppScreen(),    // 4
   ];
 
   void _onItemTapped(int index) {
     setState(() => _selectedIndex = index);
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -136,6 +141,7 @@ class _BottomNavigatorState extends State<BottomNavigator> {
 
           selectedItemColor: selectedColor,
           unselectedItemColor: unselectedColor,
+
           selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500),
 
@@ -155,6 +161,14 @@ class _BottomNavigatorState extends State<BottomNavigator> {
               activeIcon: Icon(Icons.settings, color: selectedColor),
               label: 'Settings',
             ),
+
+            // ⭐ NEW VPN BUTTON
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.vpn_lock_outlined),
+              activeIcon: Icon(Icons.vpn_lock, color: selectedColor),
+              label: 'VPN',
+            ),
+
             BottomNavigationBarItem(
               icon: const Icon(Icons.info_outline),
               activeIcon: Icon(Icons.info, color: selectedColor),

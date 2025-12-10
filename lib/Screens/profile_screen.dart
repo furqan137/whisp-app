@@ -9,7 +9,7 @@ import '../../Service/chatfeature.dart';
 import 'privacy_settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
-  final String? userUid;     // If null → show current user profile
+  final String? userUid; // If null → show current user
   const ProfileScreen({super.key, this.userUid});
 
   @override
@@ -19,10 +19,10 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   User? currentUser;
   Map<String, dynamic>? userData;
-  bool isLoading = true;
-  bool isEditingName = false;
 
-  bool viewingOthers = false;   // 🔥 new: determines profile mode
+  bool isLoading = true;
+  bool viewingOthers = false;
+  bool isEditingName = false;
 
   final TextEditingController _nameController = TextEditingController();
   final ImagePicker _picker = ImagePicker();
@@ -34,84 +34,93 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadUser();
   }
 
+  // ----------------------- LOAD USER ----------------------------
   Future<void> _loadUser() async {
     setState(() => isLoading = true);
 
     currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
 
-    if (currentUser != null) {
-      final uidToShow = widget.userUid ?? currentUser!.uid;
+    final uidToShow = widget.userUid ?? currentUser!.uid;
+    viewingOthers = uidToShow != currentUser!.uid;
 
-      // 🔥 Check if user is viewing someone else's profile
-      viewingOthers = uidToShow != currentUser!.uid;
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uidToShow)
+        .get();
 
-      final doc = await FirebaseFirestore.instance.collection('users').doc(uidToShow).get();
+    userData = doc.exists
+        ? doc.data()
+        : {
+      'username': 'Unknown',
+      'name': '',
+      'profileUrl': null,
+      'vpnLocation': "Not Set",
+      'isVPNConnected': false,
+    };
 
-      userData = doc.exists ? doc.data() : {
-        'username': 'Unknown',
-        'name': '',
-        'profileUrl': null,
-      };
-
-      _nameController.text = userData?['name'] ?? '';
-    }
+    _nameController.text = userData?['name'] ?? "";
 
     setState(() => isLoading = false);
   }
 
+  // ----------------------- PICK IMAGE ----------------------------
   Future<void> _pickProfileImage() async {
-    if (viewingOthers) return; // ❌ DO NOT allow editing
+    if (viewingOthers) return;
 
-    final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-    if (pickedFile != null) {
-      setState(() => _profileImage = File(pickedFile.path));
-      await _uploadProfileImage();
-    }
+    final file =
+    await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (file == null) return;
+
+    _profileImage = File(file.path);
+    setState(() {});
+
+    await _uploadProfileImage();
   }
 
+  // ----------------------- UPLOAD IMAGE ----------------------------
   Future<void> _uploadProfileImage() async {
-    if (_profileImage == null || currentUser == null || viewingOthers) return;
+    if (_profileImage == null || currentUser == null) return;
 
-    final url = await ChatFeatures.uploadToCloudinary(_profileImage!, 'image');
-
-    if (url != null) {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser!.uid)
-          .update({'profileUrl': url});
-
-      setState(() => userData?['profileUrl'] = url);
-    }
-  }
-
-  Future<void> _updateName() async {
-    if (viewingOthers) return; // ❌ Do not edit other people's names
-
-    final newName = _nameController.text.trim();
-    if (newName.isEmpty || currentUser == null) return;
+    final url =
+    await ChatFeatures.uploadToCloudinary(_profileImage!, "image");
+    if (url == null) return;
 
     await FirebaseFirestore.instance
-        .collection('users')
+        .collection("users")
         .doc(currentUser!.uid)
-        .update({'name': newName});
+        .update({"profileUrl": url});
+
+    setState(() => userData?["profileUrl"] = url);
+  }
+
+  // ----------------------- UPDATE NAME ----------------------------
+  Future<void> _updateName() async {
+    if (viewingOthers) return;
+
+    final newName = _nameController.text.trim();
+    if (newName.isEmpty) return;
+
+    await FirebaseFirestore.instance
+        .collection("users")
+        .doc(currentUser!.uid)
+        .update({"name": newName});
 
     setState(() {
-      userData?['name'] = newName;
+      userData?["name"] = newName;
       isEditingName = false;
     });
   }
 
+  // ----------------------- UI BUILD ----------------------------
   @override
   Widget build(BuildContext context) {
-    final themeProv = Provider.of<ThemeProvider>(context);
-    final isDark = themeProv.isDarkMode;
+    final theme = Provider.of<ThemeProvider>(context);
+    final isDark = theme.isDarkMode;
     final textColor = isDark ? Colors.white : Colors.black87;
 
     final gradient = LinearGradient(
-      colors: [
-        themeProv.accentColor,
-        themeProv.accentColor.withOpacity(0.6),
-      ],
+      colors: [theme.accentColor, theme.accentColor.withOpacity(0.5)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     );
@@ -120,7 +129,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return Scaffold(
         backgroundColor: isDark ? Colors.black : Colors.white,
         body: Center(
-          child: CircularProgressIndicator(color: themeProv.accentColor),
+          child: CircularProgressIndicator(color: theme.accentColor),
         ),
       );
     }
@@ -146,12 +155,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               // ---------------- PROFILE IMAGE ----------------
               GestureDetector(
-                onTap: viewingOthers ? null : _pickProfileImage, // ❌ Disable tap
+                onTap: viewingOthers ? null : _pickProfileImage,
                 child: Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: gradient,
-                  ),
+                  decoration:
+                  BoxDecoration(shape: BoxShape.circle, gradient: gradient),
                   padding: const EdgeInsets.all(3),
                   child: CircleAvatar(
                     radius: 54,
@@ -161,14 +168,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         : null,
                     child: userData?['profileUrl'] == null
                         ? Text(
-                      (userData?['name'] ?? userData?['username'] ?? "?")
+                      (userData?['name'] ??
+                          userData?['username'] ??
+                          "?")
                           .toString()
                           .substring(0, 1)
                           .toUpperCase(),
                       style: const TextStyle(
-                          fontSize: 40,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white),
+                        fontSize: 40,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     )
                         : null,
                   ),
@@ -180,11 +190,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // ---------------- USERNAME BOX ----------------
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 18),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  gradient: gradient,
-                  borderRadius: BorderRadius.circular(14),
-                ),
+                    gradient: gradient,
+                    borderRadius: BorderRadius.circular(14)),
                 child: Text(
                   "Username: ${userData?['username'] ?? 'User'}",
                   style: const TextStyle(
@@ -195,18 +204,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
 
-              // ---------------- NAME ----------------
-              viewingOthers
-                  ? Center(
+              // ---------------- ALWAYS SHOW LOCATION ----------------
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white12 : Colors.black12,
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 child: Text(
-                  userData?['name'] ?? "",
+                  "Location: ${userData?["vpnLocation"] ?? "Not Set"}",
                   style: TextStyle(
                     color: textColor,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
                   ),
+                ),
+              ),
+
+              const SizedBox(height: 25),
+
+              // ---------------- NAME SECTION ----------------
+              viewingOthers
+                  ? Text(
+                userData?["name"] ?? "",
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
                 ),
               )
                   : isEditingName
@@ -215,24 +242,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Expanded(
                     child: TextField(
                       controller: _nameController,
-                      style: TextStyle(color: textColor, fontSize: 22),
+                      style: TextStyle(
+                          color: textColor, fontSize: 22),
                       decoration: InputDecoration(
                         hintText: "Enter name",
                         hintStyle: TextStyle(
-                          color: textColor.withOpacity(0.6),
-                        ),
+                            color: textColor.withOpacity(0.5)),
                       ),
                     ),
                   ),
                   IconButton(
-                      icon: const Icon(Icons.check, color: Colors.green),
-                      onPressed: _updateName),
+                    icon: const Icon(Icons.check,
+                        color: Colors.green),
+                    onPressed: _updateName,
+                  ),
                   IconButton(
-                    icon: const Icon(Icons.close, color: Colors.red),
+                    icon: const Icon(Icons.close,
+                        color: Colors.red),
                     onPressed: () {
                       setState(() {
                         isEditingName = false;
-                        _nameController.text = userData?['name'] ?? '';
+                        _nameController.text =
+                            userData?["name"] ?? "";
                       });
                     },
                   ),
@@ -242,7 +273,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    userData?['name'] ?? "",
+                    userData?["name"] ?? "",
                     style: TextStyle(
                       color: textColor,
                       fontSize: 22,
@@ -251,45 +282,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   if (!viewingOthers)
                     IconButton(
-                      icon: Icon(Icons.edit, color: textColor),
-                      onPressed: () => setState(() => isEditingName = true),
+                      icon:
+                      Icon(Icons.edit, color: textColor),
+                      onPressed: () =>
+                          setState(() => isEditingName = true),
                     ),
                 ],
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: 35),
 
               // ---------------- PRIVACY SETTINGS ----------------
-              if (!viewingOthers)      // ❌ Hide for others
+              if (!viewingOthers)
                 GestureDetector(
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const PrivacySettingsScreen()),
+                      MaterialPageRoute(
+                          builder: (_) => const PrivacySettingsScreen()),
                     );
                   },
                   child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: isDark ? Colors.white10 : Colors.black.withOpacity(0.04),
+                      color: isDark ? Colors.white10 : Colors.black12,
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.lock_outline, color: themeProv.accentColor, size: 26),
+                        Icon(Icons.lock_outline,
+                            color: theme.accentColor, size: 26),
                         const SizedBox(width: 12),
                         Text(
                           "Privacy Settings",
                           style: TextStyle(
-                            color: textColor,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
+                              color: textColor,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600),
                         ),
                         const Spacer(),
                         Icon(Icons.arrow_forward_ios,
-                            color: textColor.withOpacity(0.5), size: 18),
+                            color: textColor.withOpacity(0.5),
+                            size: 18),
                       ],
                     ),
                   ),

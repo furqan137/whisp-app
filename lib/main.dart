@@ -8,6 +8,7 @@ import 'Screens/splash/splash.dart';
 import 'Service/notification.dart';
 import 'firebase_options.dart';
 import 'theme/theme_provider.dart';
+import 'Screens/vpn/global_vpn.dart';   // Global Fake VPN Manager
 
 Future<void> saveDeviceToken(String userId) async {
   String? token = await FirebaseMessaging.instance.getToken();
@@ -17,21 +18,24 @@ Future<void> saveDeviceToken(String userId) async {
         .doc(userId)
         .set({'deviceToken': token}, SetOptions(merge: true));
 
-    print("📱 Device token saved for user $userId: $token");
+    print("📱 Device token saved for $userId: $token");
   }
 }
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // --- Firebase Init ---
+  // Initialize Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // --- Push Notification Init ---
+  // Push Notifications
   final NotificationService notificationService = NotificationService();
   await notificationService.initNotifications();
+
+  // Initialize Global Fake VPN System
+  GlobalVPN.init();
 
   runApp(
     ChangeNotifierProvider(
@@ -52,10 +56,9 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Chat App',
 
-      // 🌙 Dynamic Theme From ThemeProvider
       themeMode: themeProvider.themeMode,
 
-      // 🌕 Light Theme
+      // Light Theme
       theme: ThemeData.light().copyWith(
         scaffoldBackgroundColor: Colors.white,
         appBarTheme: const AppBarTheme(
@@ -65,7 +68,7 @@ class MyApp extends StatelessWidget {
         ),
       ),
 
-      // 🌑 Dark Theme
+      // Dark Theme
       darkTheme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xff090F21),
         appBarTheme: const AppBarTheme(
@@ -75,7 +78,6 @@ class MyApp extends StatelessWidget {
         ),
       ),
 
-      // First page
       home: const SplashScreen(),
     );
   }
